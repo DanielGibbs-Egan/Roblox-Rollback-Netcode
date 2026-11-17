@@ -1,0 +1,5 @@
+local UserInputService = game:GetService("UserInputService")
+
+local player = game.Players.LocalPlayer
+
+UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
