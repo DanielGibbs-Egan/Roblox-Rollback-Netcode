@@ -1,0 +1,89 @@
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remote = ReplicatedStorage.RemoteEvent
+local Setup = ReplicatedStorage.SetupRemote
+local getTimeStamp = ReplicatedStorage.getTimeStamp
+
+local timeStamp = 0;
+local timeStack = 0;
+
+local nextUpdate = 0;
+
+local position = Vector2.zero;
+local movement = Vector2.zero;
+
+local lastPosition = position
+
+local lastMovement = movement
+
+function roundVector2(vector: Vector2, decimalPlaces: number)
+
+	local x = vector.X * 10^decimalPlaces
+	x = math.round(x) / 10^decimalPlaces
+
+	local y = vector.Y * 10^decimalPlaces
+	y = math.round(y) / 10^decimalPlaces
+
+	return Vector2.new(x, y)
+
+end
+
+Setup.OnClientEvent:Connect(function(serverTimeStamp: number, character: Part)
+
+	local updateLoop
+
+	updateLoop = function(change)
+
+		local startTime = timeStamp		
+
+		local serverTime = getTimeStamp:InvokeServer() + 3
+
+		if serverTime ~= timeStamp then
+
+			timeStamp = serverTime
+
+		else
+
+			updateLoop = function(deltaTime)
+
+				local delta = UserInputService:GetMouseDelta()
+				
+				movement = roundVector2(delta, 3)
+				
+				position += lastMovement * deltaTime
+
+				character.Position = Vector3.new(position.X/50, 0, position.Y/50)
+
+				if lastMovement ~= movement then
+
+					Remote:FireServer(movement, lastMovement, timeStamp)
+
+				end
+
+				lastMovement = movement
+
+				lastPosition = position
+
+			end
+
+		end
+	end
+	
+	
+	RunService.Heartbeat:Connect(function(deltaTime)
+		
+		timeStack += (deltaTime * 60)
+
+		local change = math.floor(timeStack)
+		
+		timeStack -= change
+
+		timeStamp += change
+
+		updateLoop(change)
+
+	end)
+
+end)
