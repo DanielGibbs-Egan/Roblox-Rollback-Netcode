@@ -1,0 +1,129 @@
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Setup = ReplicatedStorage.SetupRemote
+local Remote = ReplicatedStorage.RemoteEvent
+local getTimeStamp = ReplicatedStorage.getTimeStamp
+
+local position = 0;
+
+local updateFunctions = {};
+
+local serverClientTimeConversion = 0;
+
+local serverStartTime = tick() - time()
+
+local timeStamp = 0
+local timeStack = 0
+
+local players: {Player} = {}
+
+local characters: {Part} = {}
+
+local positions: {Vector2} = {}
+
+local movements: {Vector2} = {};
+
+local playerSetupFunctions = {};
+
+getTimeStamp.OnServerInvoke = function()
+	return timeStamp
+end
+
+game.Players.PlayerAdded:Connect(function(player)
+	
+	positions[player] = Vector2.zero
+	movements[player] = Vector2.zero
+
+	local character = Instance.new("Part")
+	character.Anchored = true
+	character.Parent = workspace
+	character.Size = Vector3.one/10
+	character.Position = Vector3.zero
+	character.Name = player.Name
+
+	characters[player] = character
+
+	table.insert(players, player)
+
+	table.insert(playerSetupFunctions, function() 
+		Setup:FireClient(player, timeStamp, character) 
+	end)
+
+end)
+
+Remote.OnServerEvent:Connect(function(player, newMovement, oldMovement, timeSent)
+	
+	table.insert(updateFunctions, function() 
+
+		local speedDifference = (newMovement - oldMovement)
+
+		local retrievalInterval = (timeStamp - timeSent)
+
+		positions[player] += speedDifference * retrievalInterval
+
+		movements[player] = newMovement
+
+	end)
+
+end)
+
+local update = coroutine.create(function()
+
+	while true do
+
+		while (updateFunctions[1]) do
+			
+			local updateFunction = table.remove(updateFunctions, 1)
+
+			updateFunction()
+
+		end
+
+		coroutine.yield()
+
+	end
+
+end)
+
+local setupPlayers = coroutine.create(function()
+
+	while true do
+
+		while (playerSetupFunctions[1]) do
+
+			local setupFunction = table.remove(playerSetupFunctions,1)
+
+			setupFunction()
+
+		end 
+
+		coroutine.yield()
+
+	end
+
+end)
+
+RunService.Heartbeat:Connect(function(deltaTime)
+
+	timeStack += (deltaTime * 60)
+
+	local change = math.floor(timeStack)
+	
+	timeStack -= change
+
+	timeStamp += change
+
+	for _, player in pairs(players) do
+
+		positions[player] += movements[player] * change
+
+		characters[player].Position = Vector3.new(positions[player].X/50, 0, positions[player].Y/50)
+
+	end
+	
+	coroutine.resume(update)
+
+	coroutine.resume(setupPlayers)
+
+end)
